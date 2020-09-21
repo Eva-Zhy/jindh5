@@ -17,8 +17,236 @@ var onVisibilityChange = function () {
 document.addEventListener(visibilityChangeEvent, onVisibilityChange)
 
 var u = navigator.userAgent;
-window.isIOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/);
-console.log("isIOS",isIOS);
+window._isAndroid = u.indexOf('Android') > -1 || u.indexOf('Adr') > -1;
+console.log("_isAndroid",_isAndroid);
+function getLaciton() {
+// 获得经纬度
+    var routerParam = {appid: window.appid};
+    console.log("_isAndroid", _isAndroid)
+    if (_isAndroid) {
+        console.log("_isAndroid调试", _isAndroid)
+        const jsonStr = {
+            routerURL:
+                'router://com.jingdong.app.mall.location.JSLocationManager/getAddress',
+            routerParam: _isAndroid ? JSON.stringify(routerParam) : routerParam,
+            callBackName: 'getAddressCallback',
+            callBackId: new Date().getTime()
+        }
+        window.JDAppUnite && window.JDAppUnite.callRouterModuleWithParams(JSON.stringify(jsonStr));
+    } else {
+        console.log("ios调试", _isAndroid)
+        const jsonStr = {
+            routerURL:
+                'router://JDBLBSKitModule/getAddressInfo',
+            routerParam: _isAndroid ? JSON.stringify(routerParam) : routerParam,
+            callBackName: 'getAsyncAddressInfoCb',
+            callBackId: new Date().getTime()
+        }
+        window.webkit.messageHandlers.JDAppUnite.postMessage({
+            // method: 'callSyncRouterModuleWithParams',
+            method: 'callRouterModuleWithParams',
+            params: JSON.stringify(jsonStr)
+        });
+    }
+}
+
+
+function getAsyncAddressInfoCb(res) {
+    console.log(res);
+    var res2 = JSON.parse(res);
+    console.log(res2);
+    window.srclat = res2.data.srclat;
+    window.srclng = res2.data.srclng;
+    getJdShop(res2.data.srclat, res2.data.srclng)
+}
+
+function getAddressCallback(res) {
+    console.log(res);
+    var res2 = JSON.parse(res);
+    console.log(res2);
+    window.srclat = res2.data.srclat;
+    window.srclng = res2.data.srclng;
+    getJdShop(res2.data.srclat, res2.data.srclng)
+}
+
+// 打开小程序
+function getJdmpShop(storeId, venderId, skuId = '') {
+    let url = `openapp.jdmobile://virtual?params={"category":"jump","des":"jdmp","appId":"${venderId}","vapptype":"1","param":{"storeId":"${storeId}","venderId":"${venderId}","bizType":1, "source":"1","skuId": "${skuId}"}}`
+    return url
+}
+
+// 获得附近店铺
+function getJdShop(srclat, srclng) {
+    console.log("srclat", srclat)
+    console.log("srclng", srclng)
+
+    $.ajax({
+        type: "get",
+        url: "https://api.m.jd.com/client.action",//路径
+        data: {
+            functionId: "qryCompositeMaterials",
+            body: '{"qryParam":"[{\\"next\\":[],\\"mapTo\\":\\"data1_1\\",\\"type\\":\\"advertGroup\\",\\"id\\":\\"04769719\\"}]",' +
+                '"activityId":"2royoYfkou2NK8cKd8AJm6DcUKcp",' +
+                '"pageId":"",' +
+                '"reqSrc":"mainActivity",' +
+                '"platform":0,' +
+                '"geo":{"lng":"' + srclng + '","lat":"' + srclat + '"}}',
+            client: "wh5",
+            area: "",
+            networkType: "4g",
+            t: "1598675988086",
+            clientVersion: "1.0.0",
+            uuid: "1588733072843792621790",
+        },
+        dataType: "json",
+        success: function (res) {
+            console.log("到家请求", res);
+            // $("#showValue").html("到家请求:" + JSON.stringify(res));
+
+            var list = res.data.data1_1.list;
+            if (list.length != 0) {
+                var nodeString = '';
+                for (var i = 0; i < list.length; i++) {
+                    console.log(list[i]);
+                    var shopLogo = 'https://m.360buyimg.com' + list[i].extension.shopLogo;
+                    var agingType = list[i].extension.agingType;// 送达
+                    var initialDeliveryPrice = list[i].extension.initialDeliveryPrice;//起送费
+                    var baseFreight = list[i].extension.baseFreight; //基础运费
+                    var venderId = list[i].extension.venderId; //基础运费
+                    var storeId = list[i].extension.storeId; //基础运费
+                    var storeName = list[i].extension.storeName; //基础运费
+
+                    console.log(shopLogo);
+                    console.log(agingType);
+                    console.log(initialDeliveryPrice);
+                    console.log(baseFreight);
+                    console.log(venderId);
+                    console.log(storeId);
+
+                    var coupon_html = ''
+                    if (list[i].extension.joinCouponInfos!=undefined) {
+                        for (var e = 0; e < list[i].extension.joinCouponInfos.length; e++) {
+                            if (e < 3) {
+                                coupon_html += `<div class="coupon-box">
+                                <img src="img/quan2.png" alt="" class="coupon-pic">
+                                <span class="coupon-text">满${list[i].extension.joinCouponInfos[e].quota}减${list[i].extension.joinCouponInfos[e].discount}</span>
+                            </div>`
+                            }
+                        }
+                    }
+                    // var shop_url2 = `https://kai.jd.com/client?appId=jzone_crm&functionId=StoreInfoJsfService.storeInfoView&body={"param":{"venderId":${venderId},"storeId":${storeId},"lng":"${srclng}","lat":"${srclat}","storeType":"1"}}`
+                    // var shop_url2 = `https://thunder.jd.com/stores/#/?venderId=${venderId}&storeId=${storeId}&source=1&lng=${srclng}&lat=${srclat}`;
+                    var shop_url2 = getJdmpShop(storeId, venderId, '');
+
+                    nodeString += `
+                <div class="shop-item" data-url='${shop_url2}' >
+                    <img src=${shopLogo} alt="" class="shop-pic">
+                    <div class="shop-content">
+                        <div class="shop-name">${storeName}</div>
+                        <div class="coupon-box-v">
+                            ${coupon_html}
+                        </div>
+                        <div class="coupon-info">
+                        <span style="display: ${initialDeliveryPrice!=undefined?'block':'none'};float:left;">起送费￥${initialDeliveryPrice}</span>
+                         <span style="display: ${baseFreight!=undefined?'block':'none'}; float:left;">/基础运费${baseFreight}</span>
+                        </div>
+                    </div>
+                    <img style="display: ${agingType!=undefined?'block':'none'};" src="img/che.png" alt="" class="time-pic">
+                    <span style="display: ${agingType!=undefined?'block':'none'};" class="time-text">${agingType}分钟送达</span>
+                </div>`
+
+
+                }
+                $('#shopList2').html(nodeString);
+                $(".shop-item").click(function () {
+                    var shop_url = $(this).attr("data-url");
+                    // jdar.openUrl(shop_url);
+                    location.href = shop_url;
+                    // jdar.openUrl(shop_url);
+                });
+            } else {
+                $('#shopList2').html('<div class="meidian">新店正在筹备中，敬请期待哦~</div>');
+            }
+        },
+        error: function (error) {
+            console.log("Error: " + JSON.stringify(error));
+        }
+    });
+
+    $.ajax({
+        type: "get",
+        url: "https://api.m.jd.com/client.action",//路径
+        data: {
+            functionId: "qryCompositeMaterials",
+            body: '{"qryParam":"[{\\"next\\":[],\\"mapTo\\":\\"data1_1\\",\\"type\\":\\"advertGroup\\",\\"id\\":\\"04767476\\"}]",' +
+                '"activityId":"2royoYfkou2NK8cKd8AJm6DcUKcp",' +
+                '"pageId":"",' +
+                '"reqSrc":"mainActivity",' +
+                '"platform":0,' +
+                '"geo":{"lng":"' + srclng + '","lat":"' + srclat + '"}}',
+            client: "wh5",
+            area: "",
+            networkType: "4g",
+            t: "1598675988086",
+            clientVersion: "1.0.0",
+            uuid: "1588733072843792621790",
+        },
+        dataType: "json",
+        success: function (res) {
+            // console.log("无界请求", res);
+            // $("#showValue2").html("无界请求:" + JSON.stringify(res));
+
+            console.log("无界请求", res);
+            // $("#showValue").html("到家请求:" + JSON.stringify(res));
+            var list = res.data.data1_1.list;
+            if (list != 0) {
+                var nodeString = '';
+                for (var i = 0; i < list.length; i++) {
+                    console.log(list[i]);
+                    var shopLogo = list[i].extension.storeLogo;
+                    var storeDistance = list[i].extension.storeDistance;
+                    var storeAddress = list[i].extension.storeAddress;
+                    var venderId = list[i].extension.venderId;
+                    var storeId = list[i].extension.storeId;
+                    var storeName = list[i].extension.storeName;
+
+                    console.log(venderId);
+                    console.log(storeId);
+                    console.log(storeAddress);
+                    console.log(storeDistance);
+                    console.log(storeName);
+                    var shop_url2 = `https://thunder.jd.com/stores/#/?venderId=${venderId}&storeId=${storeId}&source=1&lng=${srclng}&lat=${srclat}`;
+                    // https://kai.jd.com/client?appId=jzone_crm&functionId=StoreInfoJsfService.storeInfoView&body={"param":{"venderId":${venderId},"storeId":${storeId},"lng":"${srclng}","lat":"${srclat}","storeType":"1"}}
+                    // var shop_url2 = getJdmpShop(storeId, venderId, '');
+
+                    nodeString += `
+                <div class="shop-item" data-url='${shop_url2}' >
+                    <img src=${shopLogo} alt="" class="shop-pic">
+                    <div class="shop-content">
+                        <div class="shop-name2">${storeName}</div>
+                        <div class="coupon-info2">${storeAddress}</div>
+                    </div>
+                    <img src="img/dingwei.png" alt="" class="time-pic2">
+                    <span class="time-text2">距离${storeDistance}</span>
+                </div>`
+                }
+                $('#shopList1').html(nodeString);
+                $(".shop-item").click(function () {
+                    var shop_url = $(this).attr("data-url");
+                    jdar.openUrl(shop_url);
+                    // location.href = shop_url;
+                });
+            } else {
+                $('#shopList1').html('<div class="meidian">新店正在筹备中，敬请期待哦~</div>');
+            }
+        },
+        error: function (error) {
+            console.log("Error: " + JSON.stringify(error));
+        }
+    });
+}
+
+
 
 // 风控
 function jdFengkong() {
